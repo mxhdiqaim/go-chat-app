@@ -7,13 +7,15 @@ import (
 	"net/http"
 	"os"
 	"sync"
-	"time"
+
+	// "time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/gorilla/websocket"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	// Import your generated SQLC code
 	"github.com/mxhdiqaim/go-chat-app/database"
@@ -67,7 +69,12 @@ func main() {
         // Assume you get username from request body
         username := "testuser"
         user, err := dbQueries.CreateUser(r.Context(), database.CreateUserParams{
-            ID:       uuid.New(),
+            // ID:       uuid.New(),
+            ID: pgtype.UUID{
+                Bytes:  uuid.New(),
+                Valid: true,
+                // Status: pgtype.Present,
+            },
             Username: username,
         })
         if err != nil {
