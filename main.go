@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
+
+	// "fmt"
 	"log"
 	"net/http"
 	"os"
@@ -67,7 +69,18 @@ func main() {
     // API Handlers (using sqlc generated functions)
     r.Post("/register", func(w http.ResponseWriter, r *http.Request) {
         // Assume you get username from request body
-        username := "testuser"
+        // username := "testuser"
+
+        var req struct {
+            Username string `json:"username"`
+        }
+
+        // Decode the request body into the struct
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+            http.Error(w, "Invalid request body", http.StatusBadRequest)
+            return
+        }
+        
         user, err := dbQueries.CreateUser(r.Context(), database.CreateUserParams{
             // ID:       uuid.New(),
             ID: pgtype.UUID{
@@ -75,13 +88,18 @@ func main() {
                 Valid: true,
                 // Status: pgtype.Present,
             },
-            Username: username,
+            Username: req.Username,
+            // Username: username,
         })
         if err != nil {
+            log.Printf("Failed to create user: %v", err)
             http.Error(w, "Failed to create user", http.StatusInternalServerError)
             return
         }
-        fmt.Fprintf(w, "User created: %s", user.Username)
+        // fmt.Fprintf(w, "User created: %s", user.Username)
+        // Respond with a proper JSON object
+        w.Header().Set("Content-Type", "application/json")
+        json.NewEncoder(w).Encode(user)
     })
 
     // WebSocket Handler (using go routines and channels for concurrency)

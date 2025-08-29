@@ -1,0 +1,29 @@
+# Compiled binaries
+/go-chat-app
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Dependency directory
+# If you run 'go mod vendor', this will be created.
+/vendor/
+
+# Environment variables file
+# Contains secrets and should not be committed.
+.env
+.env.*
+!.env.example
+
+# Log files
+*.log
+*.log.*
+
+# IDE and editor configuration
+.vscode/
+.idea/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
