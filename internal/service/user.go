@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/mxhdiqaim/go-chat-app/internal/database"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -26,10 +27,12 @@ func (s *UserService) CreateUser(ctx context.Context, username, password string)
         return database.User{}, fmt.Errorf("failed to hash password: %w", err)
     }
 
-    // We supposed to generate a UUID here.
+    id := uuid.New()
+    
     user, err := s.db.CreateUser(ctx, database.CreateUserParams{
-        Username: username,
-        PasswordHash: string(hashedPassword),
+        ID:             id,
+        Username:       username,
+        PasswordHash:   string(hashedPassword),
     })
     if err != nil {
         return database.User{}, fmt.Errorf("failed to create user: %w", err)

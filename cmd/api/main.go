@@ -7,11 +7,12 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
+	chi_middleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/mxhdiqaim/go-chat-app/internal/database"
 	"github.com/mxhdiqaim/go-chat-app/internal/handler"
+	"github.com/mxhdiqaim/go-chat-app/internal/middleware"
 	"github.com/mxhdiqaim/go-chat-app/internal/service"
 )
 
@@ -21,25 +22,40 @@ func main() {
     if dbURL == "" {
         dbURL = "postgresql://postgres:password@localhost:5432/postgres"
     }
+
     dbPool, err := pgxpool.New(context.Background(), dbURL)
     if err != nil {
         log.Fatalf("Unable to create connection pool: %v\n", err)
     }
+
     defer dbPool.Close()
     dbQueries := database.New(dbPool)
 
     // Initialize Services and Handlers
     userService := service.NewUserService(dbQueries)
     authHandler := handler.NewAuthHandler(userService)
+    roomHandler := handler.NewRoomHandler(dbQueries)
 
     // Router Setup
     r := chi.NewRouter()
-    r.Use(middleware.Logger)
-    r.Use(middleware.Recoverer)
+    r.Use(chi_middleware.Logger)
+    r.Use(chi_middleware.Recoverer)
 
     // Public Routes
     r.Post("/register", authHandler.RegisterUser)
     r.Post("/login", authHandler.LoginUser)
+
+    // Protected Routes (with JWT middleware)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware)
+
+		// Room CRUD Endpoints
+		r.Post("/rooms", roomHandler.CreateRoom)
+		r.Get("/rooms", roomHandler.GetRooms)
+		r.Get("/rooms/{id}", roomHandler.GetRoomByID)
+		// r.Put("/rooms/{id}", ...)
+		// r.Delete("/rooms/{id}", ...)
+	})
 
     // NOTE: For now, we will add the WebSocket route here, but it will be moved later
     //r.Get("/ws/{roomID}", ...)

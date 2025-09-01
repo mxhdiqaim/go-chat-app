@@ -11,6 +11,28 @@ import (
 	"github.com/google/uuid"
 )
 
+const createRoom = `-- name: CreateRoom :one
+INSERT INTO rooms (id, name, owner_id) VALUES ($1, $2, $3) RETURNING id, name, owner_id, created_at
+`
+
+type CreateRoomParams struct {
+	ID      uuid.UUID `json:"id"`
+	Name    string    `json:"name"`
+	OwnerID uuid.UUID `json:"owner_id"`
+}
+
+func (q *Queries) CreateRoom(ctx context.Context, arg CreateRoomParams) (Room, error) {
+	row := q.db.QueryRow(ctx, createRoom, arg.ID, arg.Name, arg.OwnerID)
+	var i Room
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OwnerID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, username, password_hash) VALUES ($1, $2, $3) RETURNING id, username, password_hash, created_at
 `
@@ -31,6 +53,60 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const deleteRoom = `-- name: DeleteRoom :exec
+DELETE FROM rooms WHERE id = $1
+`
+
+func (q *Queries) DeleteRoom(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRoom, id)
+	return err
+}
+
+const getRoomByID = `-- name: GetRoomByID :one
+SELECT id, name, owner_id, created_at FROM rooms WHERE id = $1
+`
+
+func (q *Queries) GetRoomByID(ctx context.Context, id uuid.UUID) (Room, error) {
+	row := q.db.QueryRow(ctx, getRoomByID, id)
+	var i Room
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OwnerID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getRooms = `-- name: GetRooms :many
+SELECT id, name, owner_id, created_at FROM rooms ORDER BY created_at DESC
+`
+
+func (q *Queries) GetRooms(ctx context.Context) ([]Room, error) {
+	rows, err := q.db.Query(ctx, getRooms)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Room
+	for rows.Next() {
+		var i Room
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.OwnerID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUser = `-- name: GetUser :one
@@ -61,6 +137,27 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.ID,
 		&i.Username,
 		&i.PasswordHash,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateRoom = `-- name: UpdateRoom :one
+UPDATE rooms SET name = $2 WHERE id = $1 RETURNING id, name, owner_id, created_at
+`
+
+type UpdateRoomParams struct {
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+}
+
+func (q *Queries) UpdateRoom(ctx context.Context, arg UpdateRoomParams) (Room, error) {
+	row := q.db.QueryRow(ctx, updateRoom, arg.ID, arg.Name)
+	var i Room
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.OwnerID,
 		&i.CreatedAt,
 	)
 	return i, err
