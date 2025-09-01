@@ -5,17 +5,20 @@
 package database
 
 import (
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Room struct {
-	ID        pgtype.UUID        `json:"id"`
+	ID        uuid.UUID          `json:"id"`
 	Name      string             `json:"name"`
+	OwnerID   uuid.UUID          `json:"owner_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {
-	ID        pgtype.UUID        `json:"id"`
-	Username  string             `json:"username"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	ID           uuid.UUID          `json:"id"`
+	Username     string             `json:"username"`
+	PasswordHash string             `json:"password_hash"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }

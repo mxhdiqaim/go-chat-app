@@ -8,59 +8,22 @@ package database
 import (
 	"context"
 
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/google/uuid"
 )
 
-const createRoom = `-- name: CreateRoom :one
-INSERT INTO rooms (id, name) VALUES ($1, $2) RETURNING id, name, created_at
+const getUser = `-- name: GetUser :one
+SELECT id, username, password_hash FROM users WHERE username = $1
 `
 
-type CreateRoomParams struct {
-	ID   pgtype.UUID `json:"id"`
-	Name string      `json:"name"`
+type GetUserRow struct {
+	ID           uuid.UUID `json:"id"`
+	Username     string    `json:"username"`
+	PasswordHash string    `json:"password_hash"`
 }
 
-func (q *Queries) CreateRoom(ctx context.Context, arg CreateRoomParams) (Room, error) {
-	row := q.db.QueryRow(ctx, createRoom, arg.ID, arg.Name)
-	var i Room
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
-	return i, err
-}
-
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, username) VALUES ($1, $2) RETURNING id, username, created_at
-`
-
-type CreateUserParams struct {
-	ID       pgtype.UUID `json:"id"`
-	Username string      `json:"username"`
-}
-
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.ID, arg.Username)
-	var i User
-	err := row.Scan(&i.ID, &i.Username, &i.CreatedAt)
-	return i, err
-}
-
-const getRoomByName = `-- name: GetRoomByName :one
-SELECT id, name, created_at FROM rooms WHERE name = $1 LIMIT 1
-`
-
-func (q *Queries) GetRoomByName(ctx context.Context, name string) (Room, error) {
-	row := q.db.QueryRow(ctx, getRoomByName, name)
-	var i Room
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
-	return i, err
-}
-
-const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, created_at FROM users WHERE username = $1 LIMIT 1
-`
-
-func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByUsername, username)
-	var i User
-	err := row.Scan(&i.ID, &i.Username, &i.CreatedAt)
+func (q *Queries) GetUser(ctx context.Context, username string) (GetUserRow, error) {
+	row := q.db.QueryRow(ctx, getUser, username)
+	var i GetUserRow
+	err := row.Scan(&i.ID, &i.Username, &i.PasswordHash)
 	return i, err
 }
