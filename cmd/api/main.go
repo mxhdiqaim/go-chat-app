@@ -1,77 +1,51 @@
-package handler
+package main
 
 import (
-	"encoding/json"
+	"context"
+	"log"
 	"net/http"
 	"os"
-	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/mxhdiqaim/go-chat-app/internal/database"
+	"github.com/mxhdiqaim/go-chat-app/internal/handler"
 	"github.com/mxhdiqaim/go-chat-app/internal/service"
 )
 
-// AuthHandler handles authentication-related requests
-type AuthHandler struct {
-    userService *service.UserService
-}
-
-// NewAuthHandler creates a new auth handler
-func NewAuthHandler(userService *service.UserService) *AuthHandler {
-    return &AuthHandler{userService: userService}
-}
-
-// RegisterUser handles user registration
-func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
-    var req struct {
-        Username string `json:"username"`
-        Password string `json:"password"`
+func main() {
+    // Database Connection Pool
+    dbURL := os.Getenv("DATABASE_URL")
+    if dbURL == "" {
+        dbURL = "postgresql://postgres:password@localhost:5432/postgres"
     }
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        http.Error(w, "Invalid request body", http.StatusBadRequest)
-        return
-    }
-
-    user, err := h.userService.CreateUser(r.Context(), req.Username, req.Password)
+    dbPool, err := pgxpool.New(context.Background(), dbURL)
     if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
+        log.Fatalf("Unable to create connection pool: %v\n", err)
     }
+    defer dbPool.Close()
+    dbQueries := database.New(dbPool)
 
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(user)
-}
+    // Initialize Services and Handlers
+    userService := service.NewUserService(dbQueries)
+    authHandler := handler.NewAuthHandler(userService)
 
-// LoginUser handles user login and issues a JWT
-func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
-    var req struct {
-        Username string `json:"username"`
-        Password string `json:"password"`
-    }
-    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        http.Error(w, "Invalid request body", http.StatusBadRequest)
-        return
-    }
+    // Router Setup
+    r := chi.NewRouter()
+    r.Use(middleware.Logger)
+    r.Use(middleware.Recoverer)
 
-    user, err := h.userService.AuthenticateUser(r.Context(), req.Username, req.Password)
-    if err != nil {
-        http.Error(w, "Invalid credentials", http.StatusUnauthorized)
-        return
-    }
+    // Public Routes
+    r.Post("/register", authHandler.RegisterUser)
+    r.Post("/login", authHandler.LoginUser)
 
-    // Create JWT token
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-        "sub": user.ID.String(), // Use a string representation for UUID
-        "exp": time.Now().Add(time.Hour * 24).Unix(),
-    })
+    // NOTE: For now, we will add the WebSocket route here, but it will be moved later
+    //r.Get("/ws/{roomID}", ...)
 
-    tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
-    if err != nil {
-        http.Error(w, "Failed to create token", http.StatusInternalServerError)
-        return
-    }
-
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(map[string]string{
-        "token": tokenString,
-    })
+    // Start Server
+    port := ":8080"
+    log.Printf("Server starting on port %s", port)
+    log.Fatal(http.ListenAndServe(port, r))
 }
