@@ -142,6 +142,35 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	return i, err
 }
 
+const searchUsers = `-- name: SearchUsers :many
+SELECT id, username FROM users WHERE username ILIKE $1
+`
+
+type SearchUsersRow struct {
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
+}
+
+func (q *Queries) SearchUsers(ctx context.Context, username string) ([]SearchUsersRow, error) {
+	rows, err := q.db.Query(ctx, searchUsers, username)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchUsersRow
+	for rows.Next() {
+		var i SearchUsersRow
+		if err := rows.Scan(&i.ID, &i.Username); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateRoom = `-- name: UpdateRoom :one
 UPDATE rooms SET name = $2 WHERE id = $1 RETURNING id, name, owner_id, created_at
 `

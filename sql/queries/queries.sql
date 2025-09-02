@@ -21,3 +21,6 @@ UPDATE rooms SET name = $2 WHERE id = $1 RETURNING *;
 
 -- name: DeleteRoom :exec
 DELETE FROM rooms WHERE id = $1;
+
+-- name: SearchUsers :many
+SELECT id, username FROM users WHERE username ILIKE $1;

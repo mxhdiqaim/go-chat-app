@@ -38,7 +38,11 @@ func main() {
 
     hub := service.NewHub()
     go hub.Run()
+
     chatHandler := handler.NewChatHandler(hub)
+
+    // Initialize the new UserHandler
+    userHandler := handler.NewUserHandler(dbQueries)
 
     // Router Setup
     r := chi.NewRouter()
@@ -53,6 +57,9 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware)
 
+        // User Search Endpoint
+        r.Get("/users/search", userHandler.SearchUsers)
+
 		// Room CRUD Endpoints
 		r.Post("/rooms", roomHandler.CreateRoom)
 		r.Get("/rooms", roomHandler.GetRooms)
@@ -60,12 +67,8 @@ func main() {
 		// r.Put("/rooms/{id}", ...)
 		// r.Delete("/rooms/{id}", ...)
 
-        // WebSocket Endpoint (for a public chat, for now)
         r.Get("/ws/{roomID}", chatHandler.ServeWs)
 	})
-
-    // NOTE: For now, we will add the WebSocket route here, but it will be moved later
-    //r.Get("/ws/{roomID}", ...)
 
     // Start Server
     port := ":8080"
