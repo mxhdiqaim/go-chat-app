@@ -1,29 +1,30 @@
-# Compiled binaries
-/go-chat-app
+# Executable and build artifacts
 *.exe
-*.exe~
 *.dll
 *.so
-*.dylib
+*.o
+*.a
+*.lib
+**/*.bin
+bin/
+tmp/
 
-# Dependency directory
-# If you run 'go mod vendor', this will be created.
-/vendor/
+# Go module artifacts
+go.sum
+vendor/
 
-# Environment variables file
-# Contains secrets and should not be committed.
-.env
-.env.*
-!.env.example
-
-# Log files
-*.log
-*.log.*
-
-# IDE and editor configuration
-.vscode/
+# IDE and OS-specific files
 .idea/
-
-# OS-generated files
+.vscode/
 .DS_Store
 Thumbs.db
+
+# Environment variables and secrets
+.env
+jwt_secret.env
+
+# Database-specific files (e.g., local DB files)
+*.db
+_goose_db_version
+data/
+db/
