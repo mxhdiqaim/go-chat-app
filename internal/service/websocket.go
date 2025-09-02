@@ -108,7 +108,6 @@ var Upgrader = websocket.Upgrader{
 }
 
 // NewClient creates a new client, registers it with the hub, and returns it.
-// It now correctly accepts a roomID.
 func NewClient(hub *Hub, conn *websocket.Conn, userID, roomID string) *Client {
     client := &Client{
         hub:  hub,
@@ -149,7 +148,7 @@ func (c *Client) readPump() {
             continue
         }
         message.SenderID = c.userID
-        message.RoomID = c.roomID // Set the room ID from the client's session
+        message.RoomID = c.roomID
         c.hub.broadcast <- &message
     }
 }
