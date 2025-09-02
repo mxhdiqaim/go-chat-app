@@ -64,8 +64,8 @@ func main() {
 		r.Post("/rooms", roomHandler.CreateRoom)
 		r.Get("/rooms", roomHandler.GetRooms)
 		r.Get("/rooms/{id}", roomHandler.GetRoomByID)
-		// r.Put("/rooms/{id}", ...)
-		// r.Delete("/rooms/{id}", ...)
+		r.Put("/rooms/{id}", roomHandler.UpdateRoom)
+		r.Delete("/rooms/{id}", roomHandler.DeleteRoom)
 
         r.Get("/ws/{roomID}", chatHandler.ServeWs)
 	})

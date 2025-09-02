@@ -85,3 +85,90 @@ func (h *RoomHandler) GetRoomByID(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(room)
 }
+
+// UpdateRoom handles updating a room
+func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
+    roomIDParam := chi.URLParam(r, "id")
+    roomID, err := uuid.Parse(roomIDParam)
+    if err != nil {
+        http.Error(w, "Invalid room ID", http.StatusBadRequest)
+        return
+    }
+
+    // Get user ID from the JWT token in the context
+    userID, ok := r.Context().Value(middleware.ContextUserIDKey).(string)
+    if !ok {
+        http.Error(w, "User not authenticated", http.StatusUnauthorized)
+        return
+    }
+    
+    // Check if the authenticated user is the room owner
+    room, err := h.db.GetRoomByID(r.Context(), roomID)
+    if err != nil {
+        http.Error(w, "Room not found", http.StatusNotFound)
+        return
+    }
+
+    if room.OwnerID.String() != userID {
+        http.Error(w, "Forbidden: You are not the owner of this room", http.StatusForbidden)
+        return
+    }
+
+    // Decode the request body
+    var req struct {
+        Name string `json:"name"`
+    }
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        http.Error(w, "Invalid request body", http.StatusBadRequest)
+        return
+    }
+
+    updatedRoom, err := h.db.UpdateRoom(r.Context(), database.UpdateRoomParams{
+        ID:   roomID,
+        Name: req.Name,
+    })
+    if err != nil {
+        http.Error(w, "Failed to update room", http.StatusInternalServerError)
+        return
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(updatedRoom)
+}
+
+// DeleteRoom handles deleting a room
+func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
+    roomIDParam := chi.URLParam(r, "id")
+    roomID, err := uuid.Parse(roomIDParam)
+    if err != nil {
+        http.Error(w, "Invalid room ID", http.StatusBadRequest)
+        return
+    }
+
+    // Get user ID from the JWT token in the context
+    userID, ok := r.Context().Value(middleware.ContextUserIDKey).(string)
+    if !ok {
+        http.Error(w, "User not authenticated", http.StatusUnauthorized)
+        return
+    }
+    
+    // Check if the authenticated user is the room owner
+    room, err := h.db.GetRoomByID(r.Context(), roomID)
+    if err != nil {
+        http.Error(w, "Room not found", http.StatusNotFound)
+        return
+    }
+
+    if room.OwnerID.String() != userID {
+        http.Error(w, "Forbidden: You are not the owner of this room", http.StatusForbidden)
+        return
+    }
+
+    if err := h.db.DeleteRoom(r.Context(), roomID); err != nil {
+        http.Error(w, "Failed to delete room", http.StatusInternalServerError)
+        return
+    }
+
+    // Return 204 No Content on successful deletion
+    w.WriteHeader(http.StatusNoContent)
+}
