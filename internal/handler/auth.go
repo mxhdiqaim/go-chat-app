@@ -3,10 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"net/http"
-	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/mxhdiqaim/go-chat-app/internal/middleware"
 	"github.com/mxhdiqaim/go-chat-app/internal/service"
 )
 
@@ -26,14 +25,22 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
         Username string `json:"username"`
         Password string `json:"password"`
     }
+
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
         http.Error(w, "Invalid request body", http.StatusBadRequest)
         return
     }
 
-    user, err := h.userService.CreateUser(r.Context(), req.Username, req.Password)
+    // Use the new service function to hash the password
+    hashedPassword, err := service.HashPassword(req.Password)
     if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Error(w, "Failed to hash password", http.StatusInternalServerError)
+        return
+    }
+
+    user, err := h.userService.CreateUser(r.Context(), req.Username, hashedPassword)
+    if err != nil {
+        http.Error(w, "Registration failed", http.StatusInternalServerError)
         return
     }
 
@@ -51,27 +58,25 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Invalid request body", http.StatusBadRequest)
         return
     }
-
-    user, err := h.userService.AuthenticateUser(r.Context(), req.Username, req.Password)
+    
+    user, err := h.userService.GetUserByUsername(r.Context(), req.Username)
     if err != nil {
         http.Error(w, "Invalid credentials", http.StatusUnauthorized)
         return
     }
 
-    // Create JWT token
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-        "sub": user.ID.String(), // Use a string representation for UUID
-        "exp": time.Now().Add(time.Hour * 24).Unix(),
-    })
+   // Use the new service function to check the password
+    if !service.CheckPasswordHash(req.Password, user.Password) {
+        http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+        return
+    }
 
-    tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+    token, err := middleware.GenerateJWT(user.ID.String(), 24*time.Hour)
     if err != nil {
-        http.Error(w, "Failed to create token", http.StatusInternalServerError)
+        http.Error(w, "Failed to generate token", http.StatusInternalServerError)
         return
     }
 
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(map[string]string{
-        "token": tokenString,
-    })
+    json.NewEncoder(w).Encode(map[string]string{"token": token})
 }

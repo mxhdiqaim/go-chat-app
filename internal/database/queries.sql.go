@@ -48,22 +48,22 @@ func (q *Queries) CreateRoom(ctx context.Context, arg CreateRoomParams) (Room, e
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, username, password_hash) VALUES ($1, $2, $3) RETURNING id, username, password_hash, created_at
+INSERT INTO users (id, username, password) VALUES ($1, $2, $3) RETURNING id, username, password, created_at
 `
 
 type CreateUserParams struct {
-	ID           uuid.UUID `json:"id"`
-	Username     string    `json:"username"`
-	PasswordHash string    `json:"password_hash"`
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
+	Password string    `json:"password"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.ID, arg.Username, arg.PasswordHash)
+	row := q.db.QueryRow(ctx, createUser, arg.ID, arg.Username, arg.Password)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
-		&i.PasswordHash,
+		&i.Password,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -78,25 +78,34 @@ func (q *Queries) DeleteRoom(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const getAllUsers = `-- name: GetAllUsers :many
-SELECT id, username FROM users
+const deleteUser = `-- name: DeleteUser :exec
+DELETE FROM users WHERE id = $1
 `
 
-type GetAllUsersRow struct {
-	ID       uuid.UUID `json:"id"`
-	Username string    `json:"username"`
+func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteUser, id)
+	return err
 }
 
-func (q *Queries) GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error) {
+const getAllUsers = `-- name: GetAllUsers :many
+SELECT id, username, password, created_at FROM users
+`
+
+func (q *Queries) GetAllUsers(ctx context.Context) ([]User, error) {
 	rows, err := q.db.Query(ctx, getAllUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetAllUsersRow
+	var items []User
 	for rows.Next() {
-		var i GetAllUsersRow
-		if err := rows.Scan(&i.ID, &i.Username); err != nil {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.Password,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -121,6 +130,35 @@ func (q *Queries) GetRoomByID(ctx context.Context, id uuid.UUID) (Room, error) {
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getRoomMembers = `-- name: GetRoomMembers :many
+SELECT u.id, u.username FROM users AS u JOIN room_members AS rm ON u.id = rm.user_id WHERE rm.room_id = $1
+`
+
+type GetRoomMembersRow struct {
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
+}
+
+func (q *Queries) GetRoomMembers(ctx context.Context, roomID uuid.UUID) ([]GetRoomMembersRow, error) {
+	rows, err := q.db.Query(ctx, getRoomMembers, roomID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetRoomMembersRow
+	for rows.Next() {
+		var i GetRoomMembersRow
+		if err := rows.Scan(&i.ID, &i.Username); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getRooms = `-- name: GetRooms :many
@@ -152,41 +190,24 @@ func (q *Queries) GetRooms(ctx context.Context) ([]Room, error) {
 	return items, nil
 }
 
-const getUser = `-- name: GetUser :one
-SELECT id, username, password_hash FROM users WHERE username = $1
-`
-
-type GetUserRow struct {
-	ID           uuid.UUID `json:"id"`
-	Username     string    `json:"username"`
-	PasswordHash string    `json:"password_hash"`
-}
-
-func (q *Queries) GetUser(ctx context.Context, username string) (GetUserRow, error) {
-	row := q.db.QueryRow(ctx, getUser, username)
-	var i GetUserRow
-	err := row.Scan(&i.ID, &i.Username, &i.PasswordHash)
-	return i, err
-}
-
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, username FROM users WHERE id = $1
+SELECT id, username, password, created_at FROM users WHERE id = $1
 `
 
-type GetUserByIDRow struct {
-	ID       uuid.UUID `json:"id"`
-	Username string    `json:"username"`
-}
-
-func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRow(ctx, getUserByID, id)
-	var i GetUserByIDRow
-	err := row.Scan(&i.ID, &i.Username)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Password,
+		&i.CreatedAt,
+	)
 	return i, err
 }
 
 const getUserByUsername = `-- name: GetUserByUsername :one
-SELECT id, username, password_hash, created_at FROM users WHERE username = $1
+SELECT id, username, password, created_at FROM users WHERE username = $1
 `
 
 func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User, error) {
@@ -195,7 +216,7 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 	err := row.Scan(
 		&i.ID,
 		&i.Username,
-		&i.PasswordHash,
+		&i.Password,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -232,24 +253,24 @@ func (q *Queries) RemoveRoomMember(ctx context.Context, arg RemoveRoomMemberPara
 }
 
 const searchUsers = `-- name: SearchUsers :many
-SELECT id, username FROM users WHERE username ILIKE $1
+SELECT id, username, password, created_at FROM users WHERE username ILIKE $1
 `
 
-type SearchUsersRow struct {
-	ID       uuid.UUID `json:"id"`
-	Username string    `json:"username"`
-}
-
-func (q *Queries) SearchUsers(ctx context.Context, username string) ([]SearchUsersRow, error) {
+func (q *Queries) SearchUsers(ctx context.Context, username string) ([]User, error) {
 	rows, err := q.db.Query(ctx, searchUsers, username)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []SearchUsersRow
+	var items []User
 	for rows.Next() {
-		var i SearchUsersRow
-		if err := rows.Scan(&i.ID, &i.Username); err != nil {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.Password,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -276,6 +297,28 @@ func (q *Queries) UpdateRoom(ctx context.Context, arg UpdateRoomParams) (Room, e
 		&i.ID,
 		&i.Name,
 		&i.OwnerID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateUser = `-- name: UpdateUser :one
+UPDATE users SET username = $2, password = $3 WHERE id = $1 RETURNING id, username, password, created_at
+`
+
+type UpdateUserParams struct {
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
+	Password string    `json:"password"`
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUser, arg.ID, arg.Username, arg.Password)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Username,
+		&i.Password,
 		&i.CreatedAt,
 	)
 	return i, err

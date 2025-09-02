@@ -7,60 +7,64 @@ import (
 	"os"
 
 	"github.com/go-chi/chi/v5"
-	chi_middleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
-
+	"github.com/joho/godotenv"
 	"github.com/mxhdiqaim/go-chat-app/internal/database"
 	"github.com/mxhdiqaim/go-chat-app/internal/handler"
-	"github.com/mxhdiqaim/go-chat-app/internal/middleware"
+	customMiddleware "github.com/mxhdiqaim/go-chat-app/internal/middleware"
 	"github.com/mxhdiqaim/go-chat-app/internal/service"
 )
 
 func main() {
-    // Database Connection Pool
-    dbURL := os.Getenv("DATABASE_URL")
-    if dbURL == "" {
-        dbURL = "postgresql://postgres:password@localhost:5432/postgres"
-    }
-
-    dbPool, err := pgxpool.New(context.Background(), dbURL)
+	// Load .env file. This should be the first thing in main.
+    err := godotenv.Load()
     if err != nil {
-        log.Fatalf("Unable to create connection pool: %v\n", err)
+        // This is not a fatal error, as in production we use real env vars.
+        log.Println("Warning: .env file not found")
     }
+	
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		log.Fatal("DATABASE_URL environment variable is not set")
+	}
 
-    defer dbPool.Close()
-    dbQueries := database.New(dbPool)
+	dbPool, err := pgxpool.New(context.Background(), dbURL)
+	if err != nil {
+		log.Fatalf("Unable to create connection pool: %v\n", err)
+	}
 
-    // Initialize Services and Handlers
-    userService := service.NewUserService(dbQueries)
-    authHandler := handler.NewAuthHandler(userService)
-    roomHandler := handler.NewRoomHandler(dbQueries, dbPool) 
+	defer dbPool.Close()
+	dbQueries := database.New(dbPool)
 
-    hub := service.NewHub()
-    go hub.Run()
+	// Initialize Services and Handlers
+	userService := service.NewUserService(dbQueries)
+	authHandler := handler.NewAuthHandler(userService)
+	roomHandler := handler.NewRoomHandler(dbQueries, dbPool)
+	userHandler := handler.NewUserHandler(dbQueries)
 
-    chatHandler := handler.NewChatHandler(hub, dbQueries)
+	hub := service.NewHub()
+	go hub.Run()
+	chatHandler := handler.NewChatHandler(hub, dbQueries)
 
-    // Initialize the new UserHandler
-    userHandler := handler.NewUserHandler(dbQueries)
+	r := chi.NewRouter()
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
 
-    // Router Setup
-    r := chi.NewRouter()
-    r.Use(chi_middleware.Logger)
-    r.Use(chi_middleware.Recoverer)
+	// Public Routes
+	r.Post("/register", authHandler.RegisterUser)
+	r.Post("/login", authHandler.LoginUser)
 
-    // Public Routes
-    r.Post("/register", authHandler.RegisterUser)
-    r.Post("/login", authHandler.LoginUser)
-
-    // Protected Routes (with JWT middleware)
+	// Protected Routes (with JWT middleware)
 	r.Group(func(r chi.Router) {
-		r.Use(middleware.AuthMiddleware)
+		r.Use(customMiddleware.AuthMiddleware)
 
-        // User Endpoints
-        r.Get("/users", userHandler.GetAllUsers)
-        r.Get("/users/{id}", userHandler.GetUserByID)
-        r.Get("/users/search", userHandler.SearchUsers)
+		// User Endpoints
+		r.Get("/users", userHandler.GetAllUsers)
+		r.Get("/users/{id}", userHandler.GetUserByID)
+		r.Get("/users/search", userHandler.SearchUsers)
+		r.Put("/users/{id}", userHandler.UpdateUser)
+		r.Delete("/users/{id}", userHandler.DeleteUser)
 
 		// Room CRUD Endpoints
 		r.Post("/rooms", roomHandler.CreateRoom)
@@ -68,16 +72,14 @@ func main() {
 		r.Get("/rooms/{id}", roomHandler.GetRoomByID)
 		r.Put("/rooms/{id}", roomHandler.UpdateRoom)
 		r.Delete("/rooms/{id}", roomHandler.DeleteRoom)
+		r.Post("/rooms/{id}/join", roomHandler.JoinRoom)
+		r.Delete("/rooms/{id}/leave", roomHandler.LeaveRoom)
 
-        // New Join/Leave Endpoints
-        r.Post("/rooms/{id}/join", roomHandler.JoinRoom)
-        r.Delete("/rooms/{id}/leave", roomHandler.LeaveRoom)
-
-        r.Get("/ws/{roomID}", chatHandler.ServeWs)
+		r.Get("/ws/{roomID}", chatHandler.ServeWs)
 	})
 
-    // Start Server
-    port := ":8080"
-    log.Printf("Server starting on port %s", port)
-    log.Fatal(http.ListenAndServe(port, r))
+	// Start Server
+	port := ":8080"
+	log.Printf("Server starting on port %s", port)
+	log.Fatal(http.ListenAndServe(port, r))
 }

@@ -2,55 +2,49 @@ package service
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/mxhdiqaim/go-chat-app/internal/database"
 	"golang.org/x/crypto/bcrypt"
 )
 
-// UserService provides user-related business logic
+// UserService provides user-related business logic.
 type UserService struct {
     db *database.Queries
 }
 
-// NewUserService creates a new user service
+// NewUserService creates a new UserService.
 func NewUserService(db *database.Queries) *UserService {
     return &UserService{db: db}
 }
 
-// CreateUser hashes the password and creates a new user
-func (s *UserService) CreateUser(ctx context.Context, username, password string) (database.User, error) {
-    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-    if err != nil {
-        return database.User{}, fmt.Errorf("failed to hash password: %w", err)
-    }
-
-    id := uuid.New()
-    
-    user, err := s.db.CreateUser(ctx, database.CreateUserParams{
-        ID:             id,
-        Username:       username,
-        PasswordHash:   string(hashedPassword),
-    })
-    if err != nil {
-        return database.User{}, fmt.Errorf("failed to create user: %w", err)
-    }
-    return user, nil
+// HashPassword hashes a user's password using bcrypt.
+func HashPassword(password string) (string, error) {
+    bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+    return string(bytes), err
 }
 
-// AuthenticateUser retrieves the user and compares the password
-func (s *UserService) AuthenticateUser(ctx context.Context, username, password string) (database.User, error) {
-    user, err := s.db.GetUserByUsername(ctx, username)
-    if err != nil {
-        return database.User{}, fmt.Errorf("user not found: %w", err)
-    }
+// CheckPasswordHash compares a plaintext password with a hashed password.
+func CheckPasswordHash(password, hash string) bool {
+    err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+    return err == nil
+}
 
-    err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
-    if err != nil {
-        return database.User{}, errors.New("invalid credentials")
-    }
+// CreateUser creates a new user in the database.
+func (s *UserService) CreateUser(ctx context.Context, username, hashedPassword string) (database.User, error) {
+    return s.db.CreateUser(ctx, database.CreateUserParams{
+        ID:       uuid.New(),
+        Username: username,
+        Password: hashedPassword,
+    })
+}
 
-    return user, nil
+// GetUserByUsername retrieves a user by their username.
+func (s *UserService) GetUserByUsername(ctx context.Context, username string) (database.User, error) {
+    return s.db.GetUserByUsername(ctx, username)
+}
+
+// GetUserByID retrieves a user by their ID.
+func (s *UserService) GetUserByID(ctx context.Context, id uuid.UUID) (database.User, error) {
+    return s.db.GetUserByID(ctx, id)
 }
