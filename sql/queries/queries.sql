@@ -33,3 +33,9 @@ DELETE FROM room_members WHERE room_id = $1 AND user_id = $2;
 
 -- name: IsRoomMember :one
 SELECT EXISTS(SELECT 1 FROM room_members WHERE room_id = $1 AND user_id = $2);
+
+-- name: GetAllUsers :many
+SELECT id, username FROM users;
+
+-- name: GetUserByID :one
+SELECT id, username FROM users WHERE id = $1;

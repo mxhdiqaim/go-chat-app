@@ -34,7 +34,7 @@ func main() {
     // Initialize Services and Handlers
     userService := service.NewUserService(dbQueries)
     authHandler := handler.NewAuthHandler(userService)
-    roomHandler := handler.NewRoomHandler(dbQueries)
+    roomHandler := handler.NewRoomHandler(dbQueries, dbPool) 
 
     hub := service.NewHub()
     go hub.Run()
@@ -57,7 +57,9 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.AuthMiddleware)
 
-        // User Search Endpoint
+        // User Endpoints
+        r.Get("/users", userHandler.GetAllUsers)
+        r.Get("/users/{id}", userHandler.GetUserByID)
         r.Get("/users/search", userHandler.SearchUsers)
 
 		// Room CRUD Endpoints

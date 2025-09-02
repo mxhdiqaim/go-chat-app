@@ -2,10 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/mxhdiqaim/go-chat-app/internal/database"
 	"github.com/mxhdiqaim/go-chat-app/internal/middleware"
 )
@@ -13,11 +15,12 @@ import (
 // RoomHandler handles requests related to chat rooms
 type RoomHandler struct {
     db *database.Queries
+    pool *pgxpool.Pool
 }
 
 // NewRoomHandler creates a new room handler
-func NewRoomHandler(db *database.Queries) *RoomHandler {
-    return &RoomHandler{db: db}
+func NewRoomHandler(db *database.Queries, pool *pgxpool.Pool) *RoomHandler {
+    return &RoomHandler{db: db, pool: pool}
 }
 
 // CreateRoom handles creating a new room
@@ -36,24 +39,54 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    ownerID, err := uuid.Parse(userID)
+    userUUID, err := uuid.Parse(userID)
     if err != nil {
-        http.Error(w, "Invalid user ID in token", http.StatusInternalServerError)
+        http.Error(w, "Invalid user ID", http.StatusInternalServerError)
         return
     }
 
-    room, err := h.db.CreateRoom(r.Context(), database.CreateRoomParams{
-        ID:      uuid.New(),
+    // Start a transaction using the connection pool
+    tx, err := h.pool.Begin(r.Context())
+    if err != nil {
+        http.Error(w, "Failed to begin transaction", http.StatusInternalServerError)
+        return
+    }
+    defer tx.Rollback(r.Context()) // The defer will rollback if a commit doesn't happen
+
+    // Create a new Queries object with the transaction
+    qtx := database.New(tx)
+
+    // 1. Create the room
+    newRoom, err := qtx.CreateRoom(r.Context(), database.CreateRoomParams{
         Name:    req.Name,
-        OwnerID: ownerID,
+        OwnerID: userUUID,
     })
     if err != nil {
+        log.Println("Failed to create room:", err)
         http.Error(w, "Failed to create room", http.StatusInternalServerError)
         return
     }
 
+    // 2. Add the owner as a member of the room
+    err = qtx.AddRoomMember(r.Context(), database.AddRoomMemberParams{
+        RoomID: newRoom.ID,
+        UserID: userUUID,
+    })
+    if err != nil {
+        log.Println("Failed to add room member:", err)
+        http.Error(w, "Failed to add room member", http.StatusInternalServerError)
+        return
+    }
+
+    // Commit the transaction if both operations succeeded
+    if err := tx.Commit(r.Context()); err != nil {
+        log.Println("Failed to commit transaction:", err)
+        http.Error(w, "Failed to commit transaction", http.StatusInternalServerError)
+        return
+    }
+
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(room)
+    json.NewEncoder(w).Encode(newRoom)
 }
 
 // GetRooms gets all rooms

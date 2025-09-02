@@ -78,6 +78,35 @@ func (q *Queries) DeleteRoom(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const getAllUsers = `-- name: GetAllUsers :many
+SELECT id, username FROM users
+`
+
+type GetAllUsersRow struct {
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
+}
+
+func (q *Queries) GetAllUsers(ctx context.Context) ([]GetAllUsersRow, error) {
+	rows, err := q.db.Query(ctx, getAllUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllUsersRow
+	for rows.Next() {
+		var i GetAllUsersRow
+		if err := rows.Scan(&i.ID, &i.Username); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRoomByID = `-- name: GetRoomByID :one
 SELECT id, name, owner_id, created_at FROM rooms WHERE id = $1
 `
@@ -137,6 +166,22 @@ func (q *Queries) GetUser(ctx context.Context, username string) (GetUserRow, err
 	row := q.db.QueryRow(ctx, getUser, username)
 	var i GetUserRow
 	err := row.Scan(&i.ID, &i.Username, &i.PasswordHash)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, username FROM users WHERE id = $1
+`
+
+type GetUserByIDRow struct {
+	ID       uuid.UUID `json:"id"`
+	Username string    `json:"username"`
+}
+
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i GetUserByIDRow
+	err := row.Scan(&i.ID, &i.Username)
 	return i, err
 }
 
