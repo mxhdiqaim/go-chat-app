@@ -36,6 +36,10 @@ func main() {
     authHandler := handler.NewAuthHandler(userService)
     roomHandler := handler.NewRoomHandler(dbQueries)
 
+    hub := service.NewHub()
+    go hub.Run()
+    chatHandler := handler.NewChatHandler(hub)
+
     // Router Setup
     r := chi.NewRouter()
     r.Use(chi_middleware.Logger)
@@ -55,6 +59,9 @@ func main() {
 		r.Get("/rooms/{id}", roomHandler.GetRoomByID)
 		// r.Put("/rooms/{id}", ...)
 		// r.Delete("/rooms/{id}", ...)
+
+        // WebSocket Endpoint (for a public chat, for now)
+        r.Get("/ws/{roomID}", chatHandler.ServeWs)
 	})
 
     // NOTE: For now, we will add the WebSocket route here, but it will be moved later
