@@ -11,7 +11,8 @@ import (
 
 // Hub maintains the set of active clients and broadcasts messages to them.
 type Hub struct {
-    clients map[string]*Client
+    // Registered clients for each room.
+    clients map[string]map[string]*Client
     broadcast chan *Message
     register chan *Client
     unregister chan *Client
@@ -20,7 +21,8 @@ type Hub struct {
 // Message represents a chat message.
 type Message struct {
     SenderID    string `json:"sender_id"`
-    RecipientID string `json:"recipient_id"` // Empty for public messages
+    RecipientID string `json:"recipient_id,omitempty"` // Omit if empty for broadcast messages
+    RoomID      string `json:"room_id"`
     Content     string `json:"content"`
 }
 
@@ -30,6 +32,7 @@ type Client struct {
     conn *websocket.Conn
     send chan *Message
     userID string
+    roomID string
 }
 
 // NewHub creates and returns a new Hub
@@ -38,18 +41,10 @@ func NewHub() *Hub {
         broadcast:  make(chan *Message),
         register:   make(chan *Client),
         unregister: make(chan *Client),
-        clients:    make(map[string]*Client),
+        clients:    make(map[string]map[string]*Client),
     }
 }
 
-// Upgrader exports the websocket upgrader for use in the handler package.
-var Upgrader = websocket.Upgrader{
-    ReadBufferSize:  1024,
-    WriteBufferSize: 1024,
-    CheckOrigin: func(r *http.Request) bool {
-        return true // Allow all origins for development
-    },
-}
 
 const (
     writeWait = 10 * time.Second
@@ -62,47 +57,65 @@ func (h *Hub) Run() {
     for {
         select {
         case client := <-h.register:
-            h.clients[client.userID] = client
-            log.Printf("Client %s registered", client.userID)
+            if _, ok := h.clients[client.roomID]; !ok {
+                h.clients[client.roomID] = make(map[string]*Client)
+            }
+            h.clients[client.roomID][client.userID] = client
+            log.Printf("Client %s registered to room %s", client.userID, client.roomID)
+
         case client := <-h.unregister:
-            if _, ok := h.clients[client.userID]; ok {
-                delete(h.clients, client.userID)
-                close(client.send)
-                log.Printf("Client %s unregistered", client.userID)
+            if _, ok := h.clients[client.roomID]; ok {
+                if _, ok := h.clients[client.roomID][client.userID]; ok {
+                    delete(h.clients[client.roomID], client.userID)
+                    close(client.send)
+                    log.Printf("Client %s unregistered from room %s", client.userID, client.roomID)
+                }
             }
         case message := <-h.broadcast:
             if message.RecipientID != "" {
-                if client, ok := h.clients[message.RecipientID]; ok {
+                if client, ok := h.clients[message.RoomID][message.RecipientID]; ok {
                     select {
                     case client.send <- message:
                     default:
                         close(client.send)
-                        delete(h.clients, client.userID)
+                        delete(h.clients[message.RoomID], client.userID)
                     }
                 } else {
-                    log.Printf("Recipient %s not found", message.RecipientID)
+                    log.Printf("Recipient %s not found in room %s", message.RecipientID, message.RoomID)
                 }
             } else {
-                for _, client := range h.clients {
-                    select {
-                    case client.send <- message:
-                    default:
-                        close(client.send)
-                        delete(h.clients, client.userID)
+                if clientsInRoom, ok := h.clients[message.RoomID]; ok {
+                    for _, client := range clientsInRoom {
+                        select {
+                        case client.send <- message:
+                        default:
+                            close(client.send)
+                            delete(h.clients[message.RoomID], client.userID)
+                        }
                     }
                 }
             }
         }
     }
 }
+// Upgrader exports the websocket upgrader for use in the handler package.
+var Upgrader = websocket.Upgrader{
+    ReadBufferSize:  1024,
+    WriteBufferSize: 1024,
+    CheckOrigin: func(r *http.Request) bool {
+        return true // Allow all origins for development
+    },
+}
 
 // NewClient creates a new client, registers it with the hub, and returns it.
-func NewClient(hub *Hub, conn *websocket.Conn, userID string) *Client {
+// It now correctly accepts a roomID.
+func NewClient(hub *Hub, conn *websocket.Conn, userID, roomID string) *Client {
     client := &Client{
         hub:  hub,
         conn: conn,
         send: make(chan *Message, 256),
         userID: userID,
+        roomID: roomID, // Initialize the new roomID field
     }
     client.hub.register <- client
     return client
@@ -136,6 +149,7 @@ func (c *Client) readPump() {
             continue
         }
         message.SenderID = c.userID
+        message.RoomID = c.roomID // Set the room ID from the client's session
         c.hub.broadcast <- &message
     }
 }

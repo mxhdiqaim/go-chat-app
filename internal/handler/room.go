@@ -22,7 +22,6 @@ func NewRoomHandler(db *database.Queries) *RoomHandler {
 
 // CreateRoom handles creating a new room
 func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
-    // Get the user ID from the request context
     userID, ok := r.Context().Value(middleware.ContextUserIDKey).(string)
     if !ok {
         http.Error(w, "User not authenticated", http.StatusUnauthorized)
@@ -170,5 +169,71 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
     }
 
     // Return 204 No Content on successful deletion
+    w.WriteHeader(http.StatusNoContent)
+}
+
+// JoinRoom handles a user joining a room.
+func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
+    roomIDParam := chi.URLParam(r, "id")
+    roomID, err := uuid.Parse(roomIDParam)
+    if err != nil {
+        http.Error(w, "Invalid room ID", http.StatusBadRequest)
+        return
+    }
+
+    userID, ok := r.Context().Value(middleware.ContextUserIDKey).(string)
+    if !ok {
+        http.Error(w, "User not authenticated", http.StatusUnauthorized)
+        return
+    }
+
+    userUUID, err := uuid.Parse(userID)
+    if err != nil {
+        http.Error(w, "Invalid user ID", http.StatusInternalServerError)
+        return
+    }
+
+    err = h.db.AddRoomMember(r.Context(), database.AddRoomMemberParams{
+        RoomID: roomID,
+        UserID: userUUID,
+    })
+    if err != nil {
+        http.Error(w, "Failed to join room", http.StatusInternalServerError)
+        return
+    }
+
+    w.WriteHeader(http.StatusNoContent)
+}
+
+// LeaveRoom handles a user leaving a room.
+func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
+    roomIDParam := chi.URLParam(r, "id")
+    roomID, err := uuid.Parse(roomIDParam)
+    if err != nil {
+        http.Error(w, "Invalid room ID", http.StatusBadRequest)
+        return
+    }
+
+    userID, ok := r.Context().Value(middleware.ContextUserIDKey).(string)
+    if !ok {
+        http.Error(w, "User not authenticated", http.StatusUnauthorized)
+        return
+    }
+
+    userUUID, err := uuid.Parse(userID)
+    if err != nil {
+        http.Error(w, "Invalid user ID", http.StatusInternalServerError)
+        return
+    }
+
+    err = h.db.RemoveRoomMember(r.Context(), database.RemoveRoomMemberParams{
+        RoomID: roomID,
+        UserID: userUUID,
+    })
+    if err != nil {
+        http.Error(w, "Failed to leave room", http.StatusInternalServerError)
+        return
+    }
+
     w.WriteHeader(http.StatusNoContent)
 }

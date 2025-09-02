@@ -39,7 +39,7 @@ func main() {
     hub := service.NewHub()
     go hub.Run()
 
-    chatHandler := handler.NewChatHandler(hub)
+    chatHandler := handler.NewChatHandler(hub, dbQueries)
 
     // Initialize the new UserHandler
     userHandler := handler.NewUserHandler(dbQueries)
@@ -66,6 +66,10 @@ func main() {
 		r.Get("/rooms/{id}", roomHandler.GetRoomByID)
 		r.Put("/rooms/{id}", roomHandler.UpdateRoom)
 		r.Delete("/rooms/{id}", roomHandler.DeleteRoom)
+
+        // New Join/Leave Endpoints
+        r.Post("/rooms/{id}/join", roomHandler.JoinRoom)
+        r.Delete("/rooms/{id}/leave", roomHandler.LeaveRoom)
 
         r.Get("/ws/{roomID}", chatHandler.ServeWs)
 	})

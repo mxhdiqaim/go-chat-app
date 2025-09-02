@@ -11,6 +11,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const addRoomMember = `-- name: AddRoomMember :exec
+INSERT INTO room_members (room_id, user_id) VALUES ($1, $2)
+`
+
+type AddRoomMemberParams struct {
+	RoomID uuid.UUID `json:"room_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) AddRoomMember(ctx context.Context, arg AddRoomMemberParams) error {
+	_, err := q.db.Exec(ctx, addRoomMember, arg.RoomID, arg.UserID)
+	return err
+}
+
 const createRoom = `-- name: CreateRoom :one
 INSERT INTO rooms (id, name, owner_id) VALUES ($1, $2, $3) RETURNING id, name, owner_id, created_at
 `
@@ -140,6 +154,36 @@ func (q *Queries) GetUserByUsername(ctx context.Context, username string) (User,
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const isRoomMember = `-- name: IsRoomMember :one
+SELECT EXISTS(SELECT 1 FROM room_members WHERE room_id = $1 AND user_id = $2)
+`
+
+type IsRoomMemberParams struct {
+	RoomID uuid.UUID `json:"room_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) IsRoomMember(ctx context.Context, arg IsRoomMemberParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isRoomMember, arg.RoomID, arg.UserID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const removeRoomMember = `-- name: RemoveRoomMember :exec
+DELETE FROM room_members WHERE room_id = $1 AND user_id = $2
+`
+
+type RemoveRoomMemberParams struct {
+	RoomID uuid.UUID `json:"room_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) RemoveRoomMember(ctx context.Context, arg RemoveRoomMemberParams) error {
+	_, err := q.db.Exec(ctx, removeRoomMember, arg.RoomID, arg.UserID)
+	return err
 }
 
 const searchUsers = `-- name: SearchUsers :many

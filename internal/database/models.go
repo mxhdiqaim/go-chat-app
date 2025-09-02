@@ -16,6 +16,11 @@ type Room struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type RoomMember struct {
+	RoomID uuid.UUID `json:"room_id"`
+	UserID uuid.UUID `json:"user_id"`
+}
+
 type User struct {
 	ID           uuid.UUID          `json:"id"`
 	Username     string             `json:"username"`
