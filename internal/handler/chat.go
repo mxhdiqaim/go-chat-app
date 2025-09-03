@@ -22,7 +22,18 @@ func NewChatHandler(hub *service.Hub, db *database.Queries) *ChatHandler {
     return &ChatHandler{hub: hub, db: db}
 }
 
-// ServeWs handles websocket requests from the peer.
+// ServeWs godoc
+// @Summary      Join and connect to a chat room
+// @Description  Upgrades the HTTP connection to a WebSocket connection for a specific chat room. The user must be authenticated and a member of the room.
+// @Tags         chat
+// @Param        roomID  path      string  true  "Room ID to connect to"
+// @Success      101     {string}  string  "Switching Protocols"
+// @Failure      400     {string}  string  "Invalid room ID"
+// @Failure      401     {string}  string  "User not authenticated"
+// @Failure      403     {string}  string  "User is not a member of this room"
+// @Failure      500     {string}  string  "Internal server error or failed to upgrade connection"
+// @Security     ApiKeyAuth
+// @Router       /ws/{roomID} [get]
 func (h *ChatHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
     userID, ok := r.Context().Value(middleware.ContextUserIDKey).(string)
     if !ok {

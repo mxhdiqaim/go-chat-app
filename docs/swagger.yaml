@@ -107,4 +107,45 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /ws/{roomID}:
+    get:
+      description: Upgrades the HTTP connection to a WebSocket connection for a specific
+        chat room. The user must be authenticated and a member of the room.
+      parameters:
+      - description: Room ID to connect to
+        in: path
+        name: roomID
+        required: true
+        type: string
+      responses:
+        "101":
+          description: Switching Protocols
+          schema:
+            type: string
+        "400":
+          description: Invalid room ID
+          schema:
+            type: string
+        "401":
+          description: User not authenticated
+          schema:
+            type: string
+        "403":
+          description: User is not a member of this room
+          schema:
+            type: string
+        "500":
+          description: Internal server error or failed to upgrade connection
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Join and connect to a chat room
+      tags:
+      - chat
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

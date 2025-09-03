@@ -112,6 +112,61 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/ws/{roomID}": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Upgrades the HTTP connection to a WebSocket connection for a specific chat room. The user must be authenticated and a member of the room.",
+                "tags": [
+                    "chat"
+                ],
+                "summary": "Join and connect to a chat room",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Room ID to connect to",
+                        "name": "roomID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid room ID",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "User not authenticated",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "403": {
+                        "description": "User is not a member of this room",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error or failed to upgrade connection",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -166,6 +221,13 @@ const docTemplate = `{
                     "example": "newuser"
                 }
             }
+        }
+    },
+    "securityDefinitions": {
+        "ApiKeyAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
         }
     }
 }`

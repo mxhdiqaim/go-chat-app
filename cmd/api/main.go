@@ -25,6 +25,14 @@ import (
 // @description This is a chat application backend API.
 // @host localhost:8080
 // @BasePath /
+// @title Go Chat Application API
+// @version 1.0
+// @description This is a chat application backend API.
+// @host localhost:8080
+// @BasePath /
+// @securityDefinitions.apikey ApiKeyAuth
+// @in header
+// @name Authorization
 
 func main() {
 	// Load .env file. This should be the first thing in main.

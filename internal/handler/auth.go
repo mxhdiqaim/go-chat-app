@@ -10,7 +10,7 @@ import (
 	"github.com/mxhdiqaim/go-chat-app/internal/service"
 )
 
-// AuthHandler handles authentication-related requests
+// AuthHandler handles authentication related requests
 type AuthHandler struct {
     userService *service.UserService
 }
