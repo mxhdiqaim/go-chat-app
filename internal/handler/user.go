@@ -22,7 +22,20 @@ func NewUserHandler(db *database.Queries) *UserHandler {
     return &UserHandler{db: db}
 }
 
-// GetAllUsers handles getting all users.
+// UpdateUserRequest defines the request body for updating a user.
+type UpdateUserRequest struct {
+    Username string `json:"username" example:"updateduser"`
+    Password string `json:"password" example:"newpassword123"`
+}
+
+// GetAllUsers godoc
+// @Summary      Get all users
+// @Description  Retrieves a list of all users in the system.
+// @Tags         users
+// @Produce      json
+// @Success      200  {array}   UserResponse
+// @Failure      500  {string}  string "Failed to get users"
+// @Router       /users [get]
 func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
     users, err := h.db.GetAllUsers(r.Context())
     if err != nil {
@@ -30,11 +43,31 @@ func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    // Convert database models to response DTOs
+    var responses []UserResponse
+
+    for _, user := range users {
+        responses = append(responses, UserResponse{
+            ID:        user.ID,
+            Username:  user.Username,
+            CreatedAt: user.CreatedAt.Time,
+        })
+    }
+
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(users)
+    json.NewEncoder(w).Encode(responses)
 }
 
-// GetUserByID handles getting a user by their ID.
+// GetUserByID godoc
+// @Summary      Get a single user by ID
+// @Description  Retrieves details for a specific user.
+// @Tags         users
+// @Produce      json
+// @Param        id  path      string  true  "User ID"
+// @Success      200 {object}  UserResponse
+// @Failure      400 {string}  string "Invalid user ID"
+// @Failure      404 {string}  string "User not found"
+// @Router       /users/{id} [get]
 func (h *UserHandler) GetUserByID(w http.ResponseWriter, r *http.Request) {
     userIDParam := chi.URLParam(r, "id")
     userID, err := uuid.Parse(userIDParam)
@@ -49,11 +82,26 @@ func (h *UserHandler) GetUserByID(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    response := UserResponse{
+        ID:        user.ID,
+        Username:  user.Username,
+        CreatedAt: user.CreatedAt.Time,
+    }
+
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(user)
+    json.NewEncoder(w).Encode(response)
 }
 
-// SearchUsers handles the user search endpoint.
+// SearchUsers godoc
+// @Summary      Search for users
+// @Description  Searches for users by username.
+// @Tags         users
+// @Produce      json
+// @Param        q   query     string  true  "Search query"
+// @Success      200 {array}   UserResponse
+// @Failure      400 {string}  string "Query parameter 'q' is required"
+// @Failure      500 {string}  string "Failed to search users"
+// @Router       /users/search [get]
 func (h *UserHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
     query := r.URL.Query().Get("q")
     if query == "" {
@@ -67,11 +115,34 @@ func (h *UserHandler) SearchUsers(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    var responses []UserResponse
+    for _, user := range users {
+        responses = append(responses, UserResponse{
+            ID:        user.ID,
+            Username:  user.Username,
+            CreatedAt: user.CreatedAt.Time,
+        })
+    }
+
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(users)
+    json.NewEncoder(w).Encode(responses)
 }
 
-// UpdateUser handles updating a user's account.
+// UpdateUser godoc
+// @Summary      Update a user's account
+// @Description  Updates a user's username and/or password. Users can only update their own account.
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        id    path      string             true  "User ID"
+// @Param        user  body      UpdateUserRequest  true  "User data to update"
+// @Success      200   {object}  UserResponse
+// @Failure      400   {string}  string "Invalid user ID or request body"
+// @Failure      401   {string}  string "User not authenticated"
+// @Failure      403   {string}  string "Forbidden: You can only update your own account"
+// @Failure      500   {string}  string "Failed to update user"
+// @Security     ApiKeyAuth
+// @Router       /users/{id} [put]
 func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
     // Get the authenticated user's ID from the JWT middleware
     authUserID, ok := r.Context().Value(middleware.ContextUserIDKey).(string)
@@ -96,11 +167,7 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Decode the request body to get new data
-    var req struct {
-        Username string `json:"username"`
-        Password string `json:"password"`
-    }
+    var req UpdateUserRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
         http.Error(w, "Invalid request body", http.StatusBadRequest)
         return
@@ -124,11 +191,28 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    response := UserResponse{
+        ID:        updatedUser.ID,
+        Username:  updatedUser.Username,
+        CreatedAt: updatedUser.CreatedAt.Time,
+    }
+
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(updatedUser)
+    json.NewEncoder(w).Encode(response)
 }
 
-// DeleteUser handles deleting a user's account.
+// DeleteUser godoc
+// @Summary      Delete a user's account
+// @Description  Deletes a user's account. Users can only delete their own account.
+// @Tags         users
+// @Param        id  path      string  true  "User ID"
+// @Success      204 {string}  string  "No Content"
+// @Failure      400 {string}  string  "Invalid user ID"
+// @Failure      401 {string}  string  "User not authenticated"
+// @Failure      403 {string}  string  "Forbidden: You can only delete your own account"
+// @Failure      500 {string}  string  "Failed to delete user"
+// @Security     ApiKeyAuth
+// @Router       /users/{id} [delete]
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
     // Get the authenticated user's ID from the JWT middleware
     authUserID, ok := r.Context().Value(middleware.ContextUserIDKey).(string)
