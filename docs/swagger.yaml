@@ -1,0 +1,110 @@
+basePath: /
+definitions:
+  handler.LoginRequest:
+    properties:
+      password:
+        example: password123
+        type: string
+      username:
+        example: newuser
+        type: string
+    type: object
+  handler.LoginResponse:
+    properties:
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
+  handler.RegisterRequest:
+    properties:
+      password:
+        example: password123
+        type: string
+      username:
+        example: newuser
+        type: string
+    type: object
+  handler.UserResponse:
+    properties:
+      created_at:
+        example: "2025-09-03T12:00:00Z"
+        type: string
+      id:
+        example: a1b2c3d4-e5f6-7890-1234-567890abcdef
+        type: string
+      username:
+        example: newuser
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: This is a chat application backend API.
+  title: Go Chat Application API
+  version: "1.0"
+paths:
+  /login:
+    post:
+      consumes:
+      - application/json
+      description: Log in with username and password to receive a JWT
+      parameters:
+      - description: User Credentials
+        in: body
+        name: credentials
+        required: true
+        schema:
+          $ref: '#/definitions/handler.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.LoginResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: Invalid credentials
+          schema:
+            type: string
+        "500":
+          description: Failed to generate token
+          schema:
+            type: string
+      summary: Log in a user
+      tags:
+      - auth
+  /register:
+    post:
+      consumes:
+      - application/json
+      description: Create a new user with a username and password
+      parameters:
+      - description: User Registration Info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.UserResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "500":
+          description: Registration failed
+          schema:
+            type: string
+      summary: Register a new user
+      tags:
+      - auth
+swagger: "2.0"

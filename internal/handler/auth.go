@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mxhdiqaim/go-chat-app/internal/middleware"
 	"github.com/mxhdiqaim/go-chat-app/internal/service"
 )
@@ -19,7 +20,41 @@ func NewAuthHandler(userService *service.UserService) *AuthHandler {
     return &AuthHandler{userService: userService}
 }
 
-// RegisterUser handles user registration
+// RegisterRequest defines the shape of the registration request body.
+type RegisterRequest struct {
+    Username string `json:"username" example:"newuser"`
+    Password string `json:"password" example:"password123"`
+}
+
+// LoginRequest defines the shape of the login request body.
+type LoginRequest struct {
+    Username string `json:"username" example:"newuser"`
+    Password string `json:"password" example:"password123"`
+}
+
+// UserResponse is the DTO for a user that is safe to send to clients.
+type UserResponse struct {
+    ID        uuid.UUID `json:"id" example:"a1b2c3d4-e5f6-7890-1234-567890abcdef"`
+    Username  string    `json:"username" example:"newuser"`
+    CreatedAt time.Time `json:"created_at" example:"2025-09-03T12:00:00Z"`
+}
+
+// LoginResponse defines the shape of the successful login response.
+type LoginResponse struct {
+    Token string `json:"token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+}
+
+// RegisterUser godoc
+// @Summary      Register a new user
+// @Description  Create a new user with a username and password
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        user  body      RegisterRequest  true  "User Registration Info"
+// @Success      201   {object}  UserResponse
+// @Failure      400   {string}  string "Invalid request body"
+// @Failure      500   {string}  string "Registration failed"
+// @Router       /register [post]
 func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
     var req struct {
         Username string `json:"username"`
@@ -48,7 +83,18 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(user)
 }
 
-// LoginUser handles user login and issues a JWT
+// LoginUser godoc
+// @Summary      Log in a user
+// @Description  Log in with username and password to receive a JWT
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        credentials  body      LoginRequest     true  "User Credentials"
+// @Success      200          {object}  LoginResponse
+// @Failure      400          {string}  string "Invalid request body"
+// @Failure      401          {string}  string "Invalid credentials"
+// @Failure      500          {string}  string "Failed to generate token"
+// @Router       /login [post]
 func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
     var req struct {
         Username string `json:"username"`

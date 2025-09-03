@@ -14,7 +14,17 @@ import (
 	"github.com/mxhdiqaim/go-chat-app/internal/handler"
 	customMiddleware "github.com/mxhdiqaim/go-chat-app/internal/middleware"
 	"github.com/mxhdiqaim/go-chat-app/internal/service"
+
+	"github.com/mxhdiqaim/go-chat-app/docs"
+
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 )
+
+// @title Go Chat Application API
+// @version 1.0
+// @description This is a chat application backend API.
+// @host localhost:8080
+// @BasePath /
 
 func main() {
 	// Load .env file. This should be the first thing in main.
@@ -50,6 +60,16 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+
+	// Swagger Docs
+	docs.SwaggerInfo.Title = "Go Chat Application API"
+	docs.SwaggerInfo.Description = "This is a real-time chat application backend."
+	docs.SwaggerInfo.Version = "1.0"
+	docs.SwaggerInfo.Host = "localhost:8080" // Change this to your production URL when you deploy
+	docs.SwaggerInfo.BasePath = "/"
+    r.Get("/swagger/*", httpSwagger.Handler(
+        httpSwagger.URL("http://localhost:8080/swagger/doc.json"), // And here
+    ))
 
 	// Public Routes
 	r.Post("/register", authHandler.RegisterUser)
