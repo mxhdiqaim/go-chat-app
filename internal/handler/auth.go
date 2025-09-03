@@ -56,10 +56,7 @@ type LoginResponse struct {
 // @Failure      500   {string}  string "Registration failed"
 // @Router       /register [post]
 func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
-    var req struct {
-        Username string `json:"username"`
-        Password string `json:"password"`
-    }
+    var req RegisterRequest
 
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
         http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -79,8 +76,15 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
         return
     }
 
+    response := UserResponse{
+        ID:        user.ID,
+        Username:  user.Username,
+        CreatedAt: user.CreatedAt.Time,
+    }
+
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(user)
+    w.WriteHeader(http.StatusCreated)
+    json.NewEncoder(w).Encode(response)
 }
 
 // LoginUser godoc
@@ -96,10 +100,7 @@ func (h *AuthHandler) RegisterUser(w http.ResponseWriter, r *http.Request) {
 // @Failure      500          {string}  string "Failed to generate token"
 // @Router       /login [post]
 func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
-    var req struct {
-        Username string `json:"username"`
-        Password string `json:"password"`
-    }
+    var req LoginRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
         http.Error(w, "Invalid request body", http.StatusBadRequest)
         return
@@ -124,5 +125,5 @@ func (h *AuthHandler) LoginUser(w http.ResponseWriter, r *http.Request) {
     }
 
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(map[string]string{"token": token})
+    json.NewEncoder(w).Encode(LoginResponse{Token: token})
 }

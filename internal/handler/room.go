@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -23,7 +24,32 @@ func NewRoomHandler(db *database.Queries, pool *pgxpool.Pool) *RoomHandler {
     return &RoomHandler{db: db, pool: pool}
 }
 
-// CreateRoom handles creating a new room
+// CreateRoomRequest defines the request body for creating a room.
+type CreateRoomRequest struct {
+    Name string `json:"name" example:"General"`
+}
+
+// RoomResponse defines the public shape of a room object.
+type RoomResponse struct {
+    ID        uuid.UUID `json:"id" example:"a1b2c3d4-e5f6-7890-1234-567890abcdef"`
+    Name      string    `json:"name" example:"General"`
+    OwnerID   uuid.UUID `json:"owner_id" example:"b1c2d3e4-f5g6-7890-1234-567890abcdef"`
+    CreatedAt time.Time `json:"created_at" example:"2025-09-03T12:00:00Z"`
+}
+
+// CreateRoom godoc
+// @Summary      Create a new room
+// @Description  Creates a new chat room. The authenticated user becomes the owner.
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Param        room  body      CreateRoomRequest  true  "Room Name"
+// @Success      201   {object}  RoomResponse
+// @Failure      400   {string}  string "Invalid request body"
+// @Failure      401   {string}  string "User not authenticated"
+// @Failure      500   {string}  string "Failed to create room"
+// @Security     ApiKeyAuth
+// @Router       /rooms [post]
 func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
     // Get the authenticated user's ID from the context.
     userIDString, ok := r.Context().Value(middleware.ContextUserIDKey).(string)
@@ -52,14 +78,13 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
 
     // Call the database to create the room with a NEW UUID.
     params := database.CreateRoomParams{
-        ID:      uuid.New(), // <-- This generates a fresh, unique ID for every request.
+        ID:      uuid.New(),
         Name:    req.Name,
         OwnerID: ownerID,
     }
 
     room, err := h.db.CreateRoom(r.Context(), params)
     if err != nil {
-        // This is where your original error was being logged.
         log.Printf("Failed to create room: %v", err)
         http.Error(w, "Failed to create room", http.StatusInternalServerError)
         return
@@ -70,18 +95,46 @@ func (h *RoomHandler) CreateRoom(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusCreated)
     json.NewEncoder(w).Encode(room)
 }
-// GetRooms gets all rooms
+
+// GetRooms godoc
+// @Summary      Get all rooms
+// @Description  Retrieves a list of all available chat rooms.
+// @Tags         rooms
+// @Produce      json
+// @Success      200  {array}   RoomResponse
+// @Failure      500  {string}  string "Failed to get rooms"
+// @Router       /rooms [get]
 func (h *RoomHandler) GetRooms(w http.ResponseWriter, r *http.Request) {
     rooms, err := h.db.GetRooms(r.Context())
     if err != nil {
         http.Error(w, "Failed to get rooms", http.StatusInternalServerError)
         return
     }
+
+     // Convert database models to response DTOs
+    var responses []RoomResponse
+    for _, room := range rooms {
+        responses = append(responses, RoomResponse{
+            ID:        room.ID,
+            Name:      room.Name,
+            OwnerID:   room.OwnerID,
+            CreatedAt: room.CreatedAt.Time,
+        })
+    }
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(rooms)
+    json.NewEncoder(w).Encode(responses)
 }
 
-// GetRoomByID gets a single room by its ID
+// GetRoomByID godoc
+// @Summary      Get a single room by ID
+// @Description  Retrieves details for a specific chat room.
+// @Tags         rooms
+// @Produce      json
+// @Param        id  path      string  true  "Room ID"
+// @Success      200 {object}  RoomResponse
+// @Failure      400 {string}  string "Invalid room ID"
+// @Failure      404 {string}  string "Room not found"
+// @Router       /rooms/{id} [get]
 func (h *RoomHandler) GetRoomByID(w http.ResponseWriter, r *http.Request) {
     roomIDParam := chi.URLParam(r, "id")
     roomID, err := uuid.Parse(roomIDParam)
@@ -95,11 +148,35 @@ func (h *RoomHandler) GetRoomByID(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Room not found", http.StatusNotFound)
         return
     }
+
+    response := RoomResponse{
+        ID:        room.ID,
+        Name:      room.Name,
+        OwnerID:   room.OwnerID,
+        CreatedAt: room.CreatedAt.Time,
+    }
+
+    
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(room)
+    json.NewEncoder(w).Encode(response)
 }
 
-// UpdateRoom handles updating a room
+// UpdateRoom godoc
+// @Summary      Update a room
+// @Description  Updates the name of a room. Only the room owner can perform this action.
+// @Tags         rooms
+// @Accept       json
+// @Produce      json
+// @Param        id    path      string             true  "Room ID"
+// @Param        room  body      CreateRoomRequest  true  "New Room Name"
+// @Success      200   {object}  RoomResponse
+// @Failure      400   {string}  string "Invalid room ID or request body"
+// @Failure      401   {string}  string "User not authenticated"
+// @Failure      403   {string}  string "Forbidden: You are not the owner"
+// @Failure      404   {string}  string "Room not found"
+// @Failure      500   {string}  string "Failed to update room"
+// @Security     ApiKeyAuth
+// @Router       /rooms/{id} [put]
 func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
     roomIDParam := chi.URLParam(r, "id")
     roomID, err := uuid.Parse(roomIDParam)
@@ -127,10 +204,7 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Decode the request body
-    var req struct {
-        Name string `json:"name"`
-    }
+    var req CreateRoomRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
         http.Error(w, "Invalid request body", http.StatusBadRequest)
         return
@@ -140,16 +214,36 @@ func (h *RoomHandler) UpdateRoom(w http.ResponseWriter, r *http.Request) {
         ID:   roomID,
         Name: req.Name,
     })
+
     if err != nil {
         http.Error(w, "Failed to update room", http.StatusInternalServerError)
         return
     }
 
+    response := RoomResponse{
+        ID:        updatedRoom.ID,
+        Name:      updatedRoom.Name,
+        OwnerID:   updatedRoom.OwnerID,
+        CreatedAt: updatedRoom.CreatedAt.Time,
+    }
+
     w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(updatedRoom)
+    json.NewEncoder(w).Encode(response)
 }
 
-// DeleteRoom handles deleting a room
+// DeleteRoom godoc
+// @Summary      Delete a room
+// @Description  Deletes a room. Only the room owner can perform this action.
+// @Tags         rooms
+// @Param        id  path      string  true  "Room ID"
+// @Success      204 {string}  string  "No Content"
+// @Failure      400 {string}  string  "Invalid room ID"
+// @Failure      401 {string}  string  "User not authenticated"
+// @Failure      403 {string}  string  "Forbidden: You are not the owner"
+// @Failure      404 {string}  string  "Room not found"
+// @Failure      500 {string}  string  "Failed to delete room"
+// @Security     ApiKeyAuth
+// @Router       /rooms/{id} [delete]
 func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
     roomIDParam := chi.URLParam(r, "id")
     roomID, err := uuid.Parse(roomIDParam)
@@ -186,7 +280,17 @@ func (h *RoomHandler) DeleteRoom(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusNoContent)
 }
 
-// JoinRoom handles a user joining a room.
+// JoinRoom godoc
+// @Summary      Join a room
+// @Description  Adds the authenticated user to a room's member list.
+// @Tags         rooms
+// @Param        id  path      string  true  "Room ID to join"
+// @Success      204 {string}  string  "No Content"
+// @Failure      400 {string}  string  "Invalid room ID"
+// @Failure      401 {string}  string  "User not authenticated"
+// @Failure      500 {string}  string  "Failed to join room"
+// @Security     ApiKeyAuth
+// @Router       /rooms/{id}/join [post]
 func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
     roomIDParam := chi.URLParam(r, "id")
     roomID, err := uuid.Parse(roomIDParam)
@@ -219,7 +323,17 @@ func (h *RoomHandler) JoinRoom(w http.ResponseWriter, r *http.Request) {
     w.WriteHeader(http.StatusNoContent)
 }
 
-// LeaveRoom handles a user leaving a room.
+// LeaveRoom godoc
+// @Summary      Leave a room
+// @Description  Removes the authenticated user from a room's member list.
+// @Tags         rooms
+// @Param        id  path      string  true  "Room ID to leave"
+// @Success      204 {string}  string  "No Content"
+// @Failure      400 {string}  string  "Invalid room ID"
+// @Failure      401 {string}  string  "User not authenticated"
+// @Failure      500 {string}  string  "Failed to leave room"
+// @Security     ApiKeyAuth
+// @Router       /rooms/{id}/leave [post]
 func (h *RoomHandler) LeaveRoom(w http.ResponseWriter, r *http.Request) {
     roomIDParam := chi.URLParam(r, "id")
     roomID, err := uuid.Parse(roomIDParam)

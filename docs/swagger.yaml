@@ -1,5 +1,11 @@
 basePath: /
 definitions:
+  handler.CreateRoomRequest:
+    properties:
+      name:
+        example: General
+        type: string
+    type: object
   handler.LoginRequest:
     properties:
       password:
@@ -22,6 +28,21 @@ definitions:
         type: string
       username:
         example: newuser
+        type: string
+    type: object
+  handler.RoomResponse:
+    properties:
+      created_at:
+        example: "2025-09-03T12:00:00Z"
+        type: string
+      id:
+        example: a1b2c3d4-e5f6-7890-1234-567890abcdef
+        type: string
+      name:
+        example: General
+        type: string
+      owner_id:
+        example: b1c2d3e4-f5g6-7890-1234-567890abcdef
         type: string
     type: object
   handler.UserResponse:
@@ -107,6 +128,236 @@ paths:
       summary: Register a new user
       tags:
       - auth
+  /rooms:
+    get:
+      description: Retrieves a list of all available chat rooms.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handler.RoomResponse'
+            type: array
+        "500":
+          description: Failed to get rooms
+          schema:
+            type: string
+      summary: Get all rooms
+      tags:
+      - rooms
+    post:
+      consumes:
+      - application/json
+      description: Creates a new chat room. The authenticated user becomes the owner.
+      parameters:
+      - description: Room Name
+        in: body
+        name: room
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateRoomRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handler.RoomResponse'
+        "400":
+          description: Invalid request body
+          schema:
+            type: string
+        "401":
+          description: User not authenticated
+          schema:
+            type: string
+        "500":
+          description: Failed to create room
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new room
+      tags:
+      - rooms
+  /rooms/{id}:
+    delete:
+      description: Deletes a room. Only the room owner can perform this action.
+      parameters:
+      - description: Room ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Invalid room ID
+          schema:
+            type: string
+        "401":
+          description: User not authenticated
+          schema:
+            type: string
+        "403":
+          description: 'Forbidden: You are not the owner'
+          schema:
+            type: string
+        "404":
+          description: Room not found
+          schema:
+            type: string
+        "500":
+          description: Failed to delete room
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Delete a room
+      tags:
+      - rooms
+    get:
+      description: Retrieves details for a specific chat room.
+      parameters:
+      - description: Room ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.RoomResponse'
+        "400":
+          description: Invalid room ID
+          schema:
+            type: string
+        "404":
+          description: Room not found
+          schema:
+            type: string
+      summary: Get a single room by ID
+      tags:
+      - rooms
+    put:
+      consumes:
+      - application/json
+      description: Updates the name of a room. Only the room owner can perform this
+        action.
+      parameters:
+      - description: Room ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: New Room Name
+        in: body
+        name: room
+        required: true
+        schema:
+          $ref: '#/definitions/handler.CreateRoomRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.RoomResponse'
+        "400":
+          description: Invalid room ID or request body
+          schema:
+            type: string
+        "401":
+          description: User not authenticated
+          schema:
+            type: string
+        "403":
+          description: 'Forbidden: You are not the owner'
+          schema:
+            type: string
+        "404":
+          description: Room not found
+          schema:
+            type: string
+        "500":
+          description: Failed to update room
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Update a room
+      tags:
+      - rooms
+  /rooms/{id}/join:
+    post:
+      description: Adds the authenticated user to a room's member list.
+      parameters:
+      - description: Room ID to join
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Invalid room ID
+          schema:
+            type: string
+        "401":
+          description: User not authenticated
+          schema:
+            type: string
+        "500":
+          description: Failed to join room
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Join a room
+      tags:
+      - rooms
+  /rooms/{id}/leave:
+    post:
+      description: Removes the authenticated user from a room's member list.
+      parameters:
+      - description: Room ID to leave
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+          schema:
+            type: string
+        "400":
+          description: Invalid room ID
+          schema:
+            type: string
+        "401":
+          description: User not authenticated
+          schema:
+            type: string
+        "500":
+          description: Failed to leave room
+          schema:
+            type: string
+      security:
+      - ApiKeyAuth: []
+      summary: Leave a room
+      tags:
+      - rooms
   /ws/{roomID}:
     get:
       description: Upgrades the HTTP connection to a WebSocket connection for a specific
