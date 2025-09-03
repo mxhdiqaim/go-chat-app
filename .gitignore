@@ -20,6 +20,7 @@ Thumbs.db
 
 # Environment variables and secrets
 .env
+.env.prod
 jwt_secret.env
 
 # Database-specific files (e.g., local DB files)

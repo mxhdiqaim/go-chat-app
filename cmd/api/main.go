@@ -69,14 +69,21 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
+	// Read host from environment variable for production, default for local
+    host := os.Getenv("HOST")
+    if host == "" {
+        host = "localhost:8080"
+    }
+
 	// Swagger Docs
 	docs.SwaggerInfo.Title = "Go Chat Application API"
 	docs.SwaggerInfo.Description = "This is a real-time chat application backend."
 	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.Host = "localhost:8080" // Change this to your production URL when you deploy
+	docs.SwaggerInfo.Host = host
 	docs.SwaggerInfo.BasePath = "/"
+	docs.SwaggerInfo.Schemes = []string{"http", "https"} // Support both http and https
     r.Get("/swagger/*", httpSwagger.Handler(
-        httpSwagger.URL("http://localhost:8080/swagger/doc.json"), // And here
+        httpSwagger.URL("/swagger/doc.json"),
     ))
 
 	// Public Routes
@@ -106,8 +113,8 @@ func main() {
 		r.Get("/ws/{roomID}", chatHandler.ServeWs)
 	})
 
-	// Start Server
-	port := ":8080"
-	log.Printf("Server starting on port %s", port)
-	log.Fatal(http.ListenAndServe(port, r))
+	log.Printf("Server starting on port 8080")
+	if err := http.ListenAndServe(":8080", r); err != nil {
+        log.Fatalf("Could not start server: %s\n", err)
+    }
 }
