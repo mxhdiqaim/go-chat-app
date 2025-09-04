@@ -20,6 +20,7 @@ Thumbs.db
 
 # Environment variables and secrets
 .env
+.env.local
 .env.prod
 jwt_secret.env
 
