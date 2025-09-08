@@ -36,10 +36,21 @@ import (
 
 func main() {
 	// Load .env file. This should be the first thing in main.
-    err := godotenv.Load()
+	env := os.Getenv("GO_ENV")
+    envFile := ".env"
+
+	if env == "production" {
+        envFile = ".env.prod"
+    }
+
+    err := godotenv.Load(envFile)
     if err != nil {
-        // This is not a fatal error, as in production we use real env vars.
-        log.Println("Warning: .env file not found")
+        // In production, the .env file is required. For dev, it's a warning.
+        if env == "production" {
+            log.Fatalf("Error loading %s file", envFile)
+        } else {
+            log.Printf("Warning: %s file not found, relying on system environment variables", envFile)
+        }
     }
 	
 	dbURL := os.Getenv("DATABASE_URL")
