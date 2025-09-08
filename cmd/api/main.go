@@ -83,7 +83,7 @@ func main() {
 	// Read host from environment variable for production, default for local
     host := os.Getenv("HOST")
     if host == "" {
-        host = "localhost:8080"
+        log.Fatalf("HOST environment variable is not set")
     }
 
 	// Swagger Docs
@@ -126,7 +126,7 @@ func main() {
 
 	port := os.Getenv("PORT")
     if port == "" {
-        port = "8080" // Default to 8080 for local development
+       log.Fatalf("PORT environment variable is not set")
     }
 
 	log.Printf("Server starting on port %s", port)
